@@ -1,6 +1,6 @@
 # Scene
 
-Scene is a quiet reading dock for macOS. Touch the far-left edge or press `⌥B`; your chosen books arrive, and the shelf leaves when you do.
+Scene is a quiet reading dock for macOS. Touch its chosen screen edge or press `⌥B`; your books arrive from that edge and leave through it. Choose Left or Right from the menu.
 
 ![Scene](Docs/scene.png)
 
@@ -11,6 +11,7 @@ Scene is a quiet reading dock for macOS. Touch the far-left edge or press `⌥B`
 - Routes each book to Apple Books, Readest, or its system default reader.
 - Opens Libby as a separate lending source.
 - Optionally hands a book context to the separately installed Mirror app.
+- Persists a left/right Dock side and mirrors the sensor, shelf, arrow, hint, animation, and rearm zone together.
 
 The default library is `~/Documents/Knowledge/Books/real`. Per-book reader choices live in `~/Library/Application Support/Scene/library.json`.
 

@@ -93,6 +93,14 @@ public enum ReaderChoice: String, Codable, CaseIterable, Identifiable, Sendable 
     }
 }
 
+public enum DockEdge: String, Codable, CaseIterable, Identifiable, Sendable {
+    case left
+    case right
+
+    public var id: String { rawValue }
+    public var displayName: String { self == .left ? "Left" : "Right" }
+}
+
 public struct SceneBook: Identifiable, Equatable, Sendable {
     public var id: String { fileURL.standardizedFileURL.path }
     public let title: String
@@ -112,10 +120,29 @@ public struct ScenePreferences: Codable, Equatable, Sendable {
     public var libraryPath: String
     public var featuredTitles: [String]
     public var readerByFilename: [String: ReaderChoice]
+    public var dockEdge: DockEdge
 
-    public init(libraryPath: String, featuredTitles: [String], readerByFilename: [String: ReaderChoice]) {
+    public init(
+        libraryPath: String,
+        featuredTitles: [String],
+        readerByFilename: [String: ReaderChoice],
+        dockEdge: DockEdge = .left
+    ) {
         self.libraryPath = libraryPath
         self.featuredTitles = featuredTitles
         self.readerByFilename = readerByFilename
+        self.dockEdge = dockEdge
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case libraryPath, featuredTitles, readerByFilename, dockEdge
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        libraryPath = try container.decode(String.self, forKey: .libraryPath)
+        featuredTitles = try container.decode([String].self, forKey: .featuredTitles)
+        readerByFilename = try container.decode([String: ReaderChoice].self, forKey: .readerByFilename)
+        dockEdge = try container.decodeIfPresent(DockEdge.self, forKey: .dockEdge) ?? .left
     }
 }

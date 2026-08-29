@@ -1,4 +1,5 @@
 import AppKit
+import SceneCore
 
 final class EdgeRevealView: NSView {
     var onEnter: (() -> Void)?
@@ -33,9 +34,12 @@ final class EdgeRevealController {
     private var globalMouseMonitor: Any?
     private var revealWorkItem: DispatchWorkItem?
     private var armed = false
+    private var latched = false
+    private var edge: DockEdge
     private let reveal: () -> Void
 
-    init(reveal: @escaping () -> Void) {
+    init(edge: DockEdge, reveal: @escaping () -> Void) {
+        self.edge = edge
         self.reveal = reveal
         rebuild()
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
@@ -57,8 +61,9 @@ final class EdgeRevealController {
         windows.forEach { $0.orderOut(nil) }
         windows = NSScreen.screens.map { screen in
             let frame = screen.visibleFrame
+            let x = edge == .left ? screen.frame.minX : screen.frame.maxX - 2
             let window = NSPanel(
-                contentRect: NSRect(x: frame.minX, y: frame.minY, width: 2, height: frame.height),
+                contentRect: NSRect(x: x, y: frame.minY, width: 2, height: frame.height),
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false,
@@ -85,18 +90,42 @@ final class EdgeRevealController {
         }
     }
 
+    func setEdge(_ edge: DockEdge) {
+        guard self.edge != edge else { return }
+        cancelReveal()
+        self.edge = edge
+        latched = false
+        rebuild()
+        handlePointerPosition(NSEvent.mouseLocation)
+    }
+
     private func handlePointerPosition(_ point: CGPoint) {
-        let atEdge = NSScreen.screens.contains {
-            NSMouseInRect(point, $0.frame, false) && point.x <= $0.frame.minX + 2
+        let atEdge = NSScreen.screens.contains { screen in
+            guard NSMouseInRect(point, screen.frame, false) else { return false }
+            return edge == .left
+                ? point.x <= screen.frame.minX + 2
+                : point.x >= screen.frame.maxX - 2
         }
-        atEdge ? scheduleReveal() : cancelReveal()
+        if atEdge {
+            scheduleReveal()
+        } else {
+            cancelReveal()
+            let stillNearEdge = NSScreen.screens.contains { screen in
+                guard NSMouseInRect(point, screen.frame, false) else { return false }
+                return edge == .left
+                    ? point.x <= screen.frame.minX + 48
+                    : point.x >= screen.frame.maxX - 48
+            }
+            if !stillNearEdge { latched = false }
+        }
     }
 
     private func scheduleReveal() {
-        guard armed else { return }
+        guard armed, !latched else { return }
         guard revealWorkItem == nil else { return }
         let item = DispatchWorkItem { [weak self] in
             self?.revealWorkItem = nil
+            self?.latched = true
             self?.reveal()
         }
         revealWorkItem = item

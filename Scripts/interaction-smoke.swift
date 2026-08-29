@@ -33,6 +33,7 @@ func moveMouse(to point: CGPoint) {
 }
 
 let display = CGDisplayBounds(CGMainDisplayID())
+let edge = CommandLine.arguments.contains("--edge=right") ? "right" : "left"
 if CommandLine.arguments.contains("--prepare") {
     moveMouse(to: CGPoint(x: display.midX, y: display.midY))
     exit(0)
@@ -56,9 +57,10 @@ guard shelfCount() == 0 else {
     FileHandle.standardError.write(Data("interaction-smoke: Option-B did not collapse Scene\n".utf8))
     exit(1)
 }
-moveMouse(to: CGPoint(x: display.minX + 1, y: display.midY))
+let edgeX = edge == "left" ? display.minX + 1 : display.maxX - 1
+moveMouse(to: CGPoint(x: edgeX, y: display.midY))
 guard shelfCount() == 1 else {
-    FileHandle.standardError.write(Data("interaction-smoke: left edge did not reveal Scene\n".utf8))
+    FileHandle.standardError.write(Data("interaction-smoke: \(edge) edge did not reveal Scene\n".utf8))
     exit(1)
 }
 moveMouse(to: CGPoint(x: display.midX, y: display.midY))
@@ -67,4 +69,4 @@ guard shelfCount() == 0 else {
     FileHandle.standardError.write(Data("interaction-smoke: Scene did not leave naturally\n".utf8))
     exit(1)
 }
-print("INTERACTION VERDICT: PASS")
+print("INTERACTION VERDICT: PASS (\(edge))")

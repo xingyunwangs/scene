@@ -35,3 +35,23 @@ import Testing
     #expect(draft.version == CaptureDraft.currentVersion)
     #expect(draft.source?.bundleIdentifier == "com.sovereign.Scene")
 }
+
+@Test func dockEdgeDefaultsLeftForOldPreferencesAndRoundTripsRight() throws {
+    let old = Data("""
+    {
+      "libraryPath": "/tmp/books",
+      "featuredTitles": [],
+      "readerByFilename": {}
+    }
+    """.utf8)
+    let decoded = try JSONDecoder().decode(ScenePreferences.self, from: old)
+    #expect(decoded.dockEdge == .left)
+
+    var changed = decoded
+    changed.dockEdge = .right
+    let roundTrip = try JSONDecoder().decode(
+        ScenePreferences.self,
+        from: JSONEncoder().encode(changed)
+    )
+    #expect(roundTrip.dockEdge == .right)
+}

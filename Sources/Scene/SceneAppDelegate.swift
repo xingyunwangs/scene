@@ -12,8 +12,13 @@ final class SceneAppDelegate: NSObject, NSApplicationDelegate {
     private var edgeRevealController: EdgeRevealController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        panelController = ScenePanelController(model: model)
-        edgeRevealController = EdgeRevealController { [weak self] in
+        var launchEdge = model.preferences.dockEdge
+        if let argument = CommandLine.arguments.first(where: { $0.hasPrefix("--dock-edge=") }),
+           let requested = DockEdge(rawValue: String(argument.dropFirst("--dock-edge=".count))) {
+            launchEdge = requested
+        }
+        panelController = ScenePanelController(model: model, edge: launchEdge)
+        edgeRevealController = EdgeRevealController(edge: launchEdge) { [weak self] in
             self?.model.activate()
             self?.panelController?.show(source: .edge)
         }
@@ -26,7 +31,7 @@ final class SceneAppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async { self?.togglePanel() }
         }
         if hotKey == nil {
-            model.status = "⌥B is unavailable; move the pointer to the far-left edge."
+            model.status = "⌥B is unavailable; move the pointer to the far-\(launchEdge.rawValue) edge."
         }
         if CommandLine.arguments.contains("lifecycle-check") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { NSApp.terminate(nil) }
@@ -50,6 +55,15 @@ final class SceneAppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(URL(fileURLWithPath: model.preferences.libraryPath, isDirectory: true))
     }
 
+    @objc private func selectDockEdge(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let edge = DockEdge(rawValue: raw) else { return }
+        guard model.setDockEdge(edge) else { return }
+        panelController?.setEdge(edge)
+        edgeRevealController?.setEdge(edge)
+        makeStatusMenu()
+    }
+
     @objc private func toggleLoginItem(_ sender: NSMenuItem) {
         do {
             if SMAppService.mainApp.status == .enabled {
@@ -66,6 +80,12 @@ final class SceneAppDelegate: NSObject, NSApplicationDelegate {
     private func makeStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "books.vertical.fill", accessibilityDescription: "Scene")
+        statusItem = item
+        makeStatusMenu()
+    }
+
+    private func makeStatusMenu() {
+        guard let item = statusItem else { return }
         let menu = NSMenu()
         let show = NSMenuItem(title: "Show Scene\t⌥B", action: #selector(togglePanel), keyEquivalent: "")
         show.target = self
@@ -73,6 +93,17 @@ final class SceneAppDelegate: NSObject, NSApplicationDelegate {
         let library = NSMenuItem(title: "Open Book Folder", action: #selector(openLibrary), keyEquivalent: "")
         library.target = self
         menu.addItem(library)
+        let sideMenu = NSMenu()
+        for edge in DockEdge.allCases {
+            let side = NSMenuItem(title: edge.displayName, action: #selector(selectDockEdge(_:)), keyEquivalent: "")
+            side.target = self
+            side.representedObject = edge.rawValue
+            side.state = model.preferences.dockEdge == edge ? .on : .off
+            sideMenu.addItem(side)
+        }
+        let sideItem = NSMenuItem(title: "Dock Side", action: nil, keyEquivalent: "")
+        sideItem.submenu = sideMenu
+        menu.addItem(sideItem)
         let login = NSMenuItem(title: "Open at Login", action: #selector(toggleLoginItem(_:)), keyEquivalent: "")
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         login.target = self
@@ -82,6 +113,5 @@ final class SceneAppDelegate: NSObject, NSApplicationDelegate {
         quit.target = NSApp
         menu.addItem(quit)
         item.menu = menu
-        statusItem = item
     }
 }

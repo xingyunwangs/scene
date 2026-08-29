@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added a persistent left/right **Dock Side** choice in Scene's menu.
+- The two-pixel sensor, shelf placement, entrance/exit motion, dismiss arrow, footer hint, and 48-point rearm zone now mirror as one system.
+- Existing `library.json` files decode as Left without resetting any book or reader preference.
+- Entrance and exit motion now respect Reduce Motion.
+
 ## 0.2.0 — 2026-08-29
 
 - First independent Scene release.

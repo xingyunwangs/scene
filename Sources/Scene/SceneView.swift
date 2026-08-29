@@ -48,7 +48,10 @@ struct SceneView: View {
                 withAnimation(.easeOut(duration: 0.18)) { model.showAll.toggle() }
             }
             .help(model.showAll ? "Featured books" : "All books")
-            HeaderButton(symbol: "chevron.left", action: onHide)
+            HeaderButton(
+                symbol: model.preferences.dockEdge == .left ? "chevron.left" : "chevron.right",
+                action: onHide
+            )
                 .help("Hide Scene")
         }
         .padding(.horizontal, 19)
@@ -78,11 +81,11 @@ struct SceneView: View {
             }
             HStack(spacing: 8) {
                 SovereignKeyHint("⌥B")
-                Text("or touch the left edge")
+                Text("or touch the \(model.preferences.dockEdge.rawValue) edge")
                     .font(.system(size: 10))
                     .foregroundStyle(SovereignDesign.secondaryInk.opacity(0.8))
                 Spacer()
-                Text("左 · 观")
+                Text(model.preferences.dockEdge == .left ? "左 · 观" : "观 · 右")
                     .font(.system(size: 11, weight: .semibold, design: .serif))
                     .foregroundStyle(SovereignDesign.sage)
             }

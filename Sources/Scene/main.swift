@@ -16,7 +16,10 @@ if arguments.first == "shot" {
     let code: Int32 = MainActor.assumeIsolated {
         _ = NSApplication.shared
         NSApplication.shared.setActivationPolicy(.accessory)
-        let model = SceneModel()
+        var preferences = SceneLibrary.loadPreferences()
+        if arguments.contains("--dock-edge=right") { preferences.dockEdge = .right }
+        if arguments.contains("--dock-edge=left") { preferences.dockEdge = .left }
+        let model = SceneModel(preferences: preferences)
         model.refresh()
         return ViewSnapshot.write(
             SceneView(model: model).frame(width: 266, height: 740),

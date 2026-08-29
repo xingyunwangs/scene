@@ -40,13 +40,15 @@ final class ScenePanelController {
     private static let width: CGFloat = 266
     private let panel: ScenePanel
     private let model: SceneModel
+    private var edge: DockEdge
     private var activeScreen: NSScreen?
     private var hideWorkItem: DispatchWorkItem?
     private var observers: [NSObjectProtocol] = []
     private var menuIsTracking = false
 
-    init(model: SceneModel) {
+    init(model: SceneModel, edge: DockEdge) {
         self.model = model
+        self.edge = edge
         panel = ScenePanel(
             contentRect: NSRect(x: 0, y: 0, width: Self.width, height: 760),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -126,7 +128,7 @@ final class ScenePanelController {
         panel.alphaValue = 0.92
         panel.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.24
+            context.duration = reduceMotion ? 0 : 0.24
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             context.allowsImplicitAnimation = true
             panel.animator().setFrame(shown, display: true)
@@ -147,7 +149,7 @@ final class ScenePanelController {
             panel?.orderOut(nil)
             panel?.alphaValue = 1
         }
-        guard animated else {
+        guard animated, !reduceMotion else {
             panel.setFrame(hiddenFrame(on: screen), display: false)
             finish()
             return
@@ -168,6 +170,13 @@ final class ScenePanelController {
     }
 
     var isVisible: Bool { panel.isVisible }
+
+    func setEdge(_ edge: DockEdge) {
+        guard self.edge != edge else { return }
+        if panel.isVisible { hide(animated: false) }
+        self.edge = edge
+        reposition()
+    }
 
     func reposition() {
         let screen = screenContainingPointer() ?? activeScreen ?? NSScreen.main
@@ -203,13 +212,20 @@ final class ScenePanelController {
     private func shownFrame(on screen: NSScreen) -> NSRect {
         let frame = screen.visibleFrame
         let height = min(740, max(580, frame.height - 32))
-        return NSRect(x: frame.minX + 12, y: frame.midY - height / 2, width: Self.width, height: height)
+        let x = edge == .left ? frame.minX + 12 : frame.maxX - Self.width - 12
+        return NSRect(x: x, y: frame.midY - height / 2, width: Self.width, height: height)
     }
 
     private func hiddenFrame(on screen: NSScreen) -> NSRect {
         var frame = shownFrame(on: screen)
-        frame.origin.x = screen.frame.minX - Self.width - 18
+        frame.origin.x = edge == .left
+            ? screen.frame.minX - Self.width - 18
+            : screen.frame.maxX + 18
         return frame
+    }
+
+    private var reduceMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
     private func screenContainingPointer() -> NSScreen? {

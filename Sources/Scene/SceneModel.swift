@@ -8,11 +8,11 @@ final class SceneModel: ObservableObject {
     @Published var showAll = false
     @Published var status = ""
     @Published var search = ""
-    private(set) var preferences: ScenePreferences
+    @Published private(set) var preferences: ScenePreferences
     private var hasLoadedLibrary = false
 
-    init() {
-        preferences = SceneLibrary.loadPreferences()
+    init(preferences: ScenePreferences? = nil) {
+        self.preferences = preferences ?? SceneLibrary.loadPreferences()
     }
 
     func activate() {
@@ -58,6 +58,22 @@ final class SceneModel: ObservableObject {
             status = "\(book.title) will use \(reader.displayName)."
         } catch {
             status = "Could not remember reader: \(error.localizedDescription)"
+        }
+    }
+
+    @discardableResult
+    func setDockEdge(_ edge: DockEdge) -> Bool {
+        guard preferences.dockEdge != edge else { return true }
+        let previous = preferences.dockEdge
+        preferences.dockEdge = edge
+        do {
+            try SceneLibrary.savePreferences(preferences)
+            status = "Scene now lives on the \(edge.displayName.lowercased()) edge."
+            return true
+        } catch {
+            preferences.dockEdge = previous
+            status = "Could not remember the Dock side: \(error.localizedDescription)"
+            return false
         }
     }
 
