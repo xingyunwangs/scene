@@ -116,26 +116,58 @@ public struct SceneBook: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct SceneLink: Codable, Identifiable, Equatable, Sendable {
+    public var id: UUID
+    public var title: String
+    public var subtitle: String
+    public var url: URL
+
+    public init(id: UUID = UUID(), title: String, subtitle: String = "", url: URL) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.url = url
+    }
+
+    public static let defaultLinks = [
+        SceneLink(
+            id: UUID(uuidString: "F2C7F76D-5790-43EA-928D-7A23E30A9B77")!,
+            title: "太极拳",
+            subtitle: "练习视频 · bilibili",
+            url: URL(string: "https://www.bilibili.com/video/BV15t411L7Bj")!
+        ),
+        SceneLink(
+            id: UUID(uuidString: "B6835B34-C1D8-4B54-920F-98DA43D84385")!,
+            title: "Libby",
+            subtitle: "Temporary loans",
+            url: URL(string: "https://libbyapp.com")!
+        ),
+    ]
+}
+
 public struct ScenePreferences: Codable, Equatable, Sendable {
     public var libraryPath: String
     public var featuredTitles: [String]
     public var readerByFilename: [String: ReaderChoice]
     public var dockEdge: DockEdge
+    public var links: [SceneLink]
 
     public init(
         libraryPath: String,
         featuredTitles: [String],
         readerByFilename: [String: ReaderChoice],
-        dockEdge: DockEdge = .left
+        dockEdge: DockEdge = .left,
+        links: [SceneLink] = SceneLink.defaultLinks
     ) {
         self.libraryPath = libraryPath
         self.featuredTitles = featuredTitles
         self.readerByFilename = readerByFilename
         self.dockEdge = dockEdge
+        self.links = links
     }
 
     private enum CodingKeys: String, CodingKey {
-        case libraryPath, featuredTitles, readerByFilename, dockEdge
+        case libraryPath, featuredTitles, readerByFilename, dockEdge, links
     }
 
     public init(from decoder: Decoder) throws {
@@ -144,5 +176,6 @@ public struct ScenePreferences: Codable, Equatable, Sendable {
         featuredTitles = try container.decode([String].self, forKey: .featuredTitles)
         readerByFilename = try container.decode([String: ReaderChoice].self, forKey: .readerByFilename)
         dockEdge = try container.decodeIfPresent(DockEdge.self, forKey: .dockEdge) ?? .left
+        links = try container.decodeIfPresent([SceneLink].self, forKey: .links) ?? SceneLink.defaultLinks
     }
 }

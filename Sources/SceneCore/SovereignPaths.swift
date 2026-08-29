@@ -29,14 +29,6 @@ public enum SovereignIO {
 
     public static func atomicWrite(_ data: Data, to destination: URL) throws {
         try ensureDirectory(destination.deletingLastPathComponent())
-        let temporary = destination.deletingLastPathComponent()
-            .appending(path: ".\(destination.lastPathComponent).\(UUID().uuidString).tmp")
-        try data.write(to: temporary, options: .withoutOverwriting)
-        do {
-            try FileManager.default.moveItem(at: temporary, to: destination)
-        } catch {
-            try? FileManager.default.removeItem(at: temporary)
-            throw error
-        }
+        try data.write(to: destination, options: .atomic)
     }
 }

@@ -1,6 +1,6 @@
 # Scene
 
-Scene is a quiet reading dock for macOS. Touch its chosen screen edge or press `⌥B`; your books arrive from that edge and leave through it. Choose Left or Right from the menu.
+Scene is a quiet reading and practice dock for macOS. Touch its chosen screen edge or press `⌥B`; books, websites, and videos arrive from that edge and leave through it. Choose Left or Right from the menu.
 
 ![Scene](Docs/scene.png)
 
@@ -9,11 +9,16 @@ Scene is a quiet reading dock for macOS. Touch its chosen screen edge or press `
 - Reads EPUB and PDF files without changing them.
 - Keeps a small featured shelf in front and the full library one click away.
 - Routes each book to Apple Books, Readest, or its system default reader.
-- Opens Libby as a separate lending source.
+- Keeps editable website and video entrances beside books. The defaults include the requested **太极拳** Bilibili practice video and Libby.
 - Optionally hands a book context to the separately installed Mirror app.
 - Persists a left/right Dock side and mirrors the sensor, shelf, arrow, hint, animation, and rearm zone together.
+- Reveals and begins hiding from the originating pointer or shortcut event—there is no dwell timer in either direction.
 
-The default library is `~/Documents/Knowledge/Books/real`. Per-book reader choices live in `~/Library/Application Support/Scene/library.json`.
+Press `+` to add an entrance, paste its complete `http` or `https` address, and choose **Keep in Scene**. Right-click an entrance to open, edit, or remove it; removal asks for confirmation. An empty list stays empty, so deleted defaults are not recreated. Clicking an entrance opens it in the default app and hides Scene immediately.
+
+<img src="Docs/scene-add-entry.png" width="266" alt="Scene add-entry editor">
+
+The default library is `~/Documents/Knowledge/Books/real`. Per-book reader choices, Dock side, and custom entrances live in `~/Library/Application Support/Scene/library.json`.
 
 ## Build
 

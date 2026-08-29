@@ -10,9 +10,11 @@ final class SceneModel: ObservableObject {
     @Published var search = ""
     @Published private(set) var preferences: ScenePreferences
     private var hasLoadedLibrary = false
+    private let preferencesURL: URL
 
-    init(preferences: ScenePreferences? = nil) {
+    init(preferences: ScenePreferences? = nil, preferencesURL: URL = SovereignPaths.scenePreferences) {
         self.preferences = preferences ?? SceneLibrary.loadPreferences()
+        self.preferencesURL = preferencesURL
     }
 
     func activate() {
@@ -27,6 +29,16 @@ final class SceneModel: ObservableObject {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return base }
         return base.filter { $0.title.localizedCaseInsensitiveContains(query) }
+    }
+
+    var visibleLinks: [SceneLink] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return preferences.links }
+        return preferences.links.filter {
+            $0.title.localizedCaseInsensitiveContains(query)
+                || $0.subtitle.localizedCaseInsensitiveContains(query)
+                || $0.url.absoluteString.localizedCaseInsensitiveContains(query)
+        }
     }
 
     func refresh() {
@@ -53,11 +65,70 @@ final class SceneModel: ObservableObject {
     func setReader(_ reader: ReaderChoice, for book: SceneBook) {
         preferences.readerByFilename[book.fileURL.lastPathComponent] = reader
         do {
-            try SceneLibrary.savePreferences(preferences)
+            try SceneLibrary.savePreferences(preferences, to: preferencesURL)
             refresh()
             status = "\(book.title) will use \(reader.displayName)."
         } catch {
             status = "Could not remember reader: \(error.localizedDescription)"
+        }
+    }
+
+    func open(_ link: SceneLink) {
+        guard NSWorkspace.shared.open(link.url) else {
+            status = "Could not open \(link.title)."
+            NSSound.beep()
+            return
+        }
+        status = "Opened \(link.title)."
+        NotificationCenter.default.post(name: .sceneHideShelf, object: nil)
+    }
+
+    @discardableResult
+    func saveLink(id: UUID?, title: String, subtitle: String, urlText: String) -> Bool {
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanSubtitle = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanURL = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanTitle.isEmpty,
+              let components = URLComponents(string: cleanURL),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              components.host?.isEmpty == false,
+              let url = components.url
+        else {
+            status = "Add a name and a complete http or https address."
+            return false
+        }
+
+        let previous = preferences.links
+        let link = SceneLink(id: id ?? UUID(), title: cleanTitle, subtitle: cleanSubtitle, url: url)
+        if let id, let index = preferences.links.firstIndex(where: { $0.id == id }) {
+            preferences.links[index] = link
+        } else {
+            preferences.links.insert(link, at: 0)
+        }
+        do {
+            try SceneLibrary.savePreferences(preferences, to: preferencesURL)
+            status = id == nil ? "Added \(cleanTitle) to Scene." : "Updated \(cleanTitle)."
+            return true
+        } catch {
+            preferences.links = previous
+            status = "Could not save the entry: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    @discardableResult
+    func remove(_ link: SceneLink) -> Bool {
+        let previous = preferences.links
+        preferences.links.removeAll { $0.id == link.id }
+        do {
+            try SceneLibrary.savePreferences(preferences, to: preferencesURL)
+            status = "Removed \(link.title) from Scene."
+            return true
+        } catch {
+            preferences.links = previous
+            status = "Could not remove the entry: \(error.localizedDescription)"
+            return false
         }
     }
 
@@ -67,7 +138,7 @@ final class SceneModel: ObservableObject {
         let previous = preferences.dockEdge
         preferences.dockEdge = edge
         do {
-            try SceneLibrary.savePreferences(preferences)
+            try SceneLibrary.savePreferences(preferences, to: preferencesURL)
             status = "Scene now lives on the \(edge.displayName.lowercased()) edge."
             return true
         } catch {
@@ -95,12 +166,6 @@ final class SceneModel: ObservableObject {
         }
     }
 
-    func openLibby() {
-        guard let url = URL(string: "https://libbyapp.com") else { return }
-        NSWorkspace.shared.open(url)
-        status = "Opened Libby. Loans remain in Libby."
-        NotificationCenter.default.post(name: .sceneHideShelf, object: nil)
-    }
 }
 
 enum ReaderRouterError: LocalizedError {

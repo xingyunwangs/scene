@@ -4,23 +4,44 @@ import SwiftUI
 
 struct SceneView: View {
     @ObservedObject var model: SceneModel
-    var onHide: () -> Void = {}
+    var onHide: () -> Void
+    @State private var linkEditor: LinkEditorDraft?
+    @State private var pendingDeletion: SceneLink?
+
+    init(model: SceneModel, onHide: @escaping () -> Void = {}, startsAddingLink: Bool = false) {
+        self.model = model
+        self.onHide = onHide
+        _linkEditor = State(initialValue: startsAddingLink ? LinkEditorDraft() : nil)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            if model.showAll { search }
-            ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 16) {
-                    ForEach(model.visibleBooks) { book in
-                        BookCard(book: book, model: model)
+            if pendingDeletion != nil {
+                removalConfirmation
+            } else if linkEditor != nil {
+                linkEditorBody
+            } else {
+                if model.showAll { search }
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 16) {
+                        ForEach(model.visibleLinks) { link in
+                            LinkCard(
+                                link: link,
+                                open: { model.open(link) },
+                                edit: { linkEditor = LinkEditorDraft(link) },
+                                remove: { pendingDeletion = link }
+                            )
+                        }
+                        ForEach(model.visibleBooks) { book in
+                            BookCard(book: book, model: model)
+                        }
                     }
-                    LibbyCard(action: model.openLibby)
+                    .padding(.horizontal, 17)
+                    .padding(.vertical, 18)
                 }
-                .padding(.horizontal, 17)
-                .padding(.vertical, 18)
+                footer
             }
-            footer
         }
         .frame(minWidth: 266, minHeight: 580)
         .background(.ultraThinMaterial)
@@ -39,15 +60,27 @@ struct SceneView: View {
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .tracking(1.9)
                     .foregroundStyle(SovereignDesign.rust)
-                Text(model.showAll ? "Library" : "Read next")
+                Text(headerTitle)
                     .font(.system(size: 24, weight: .semibold, design: .serif))
                     .foregroundStyle(SovereignDesign.ink)
             }
             Spacer()
-            HeaderButton(symbol: model.showAll ? "books.vertical.fill" : "square.grid.2x2") {
-                withAnimation(.easeOut(duration: 0.18)) { model.showAll.toggle() }
+            if linkEditor == nil, pendingDeletion == nil {
+                HeaderButton(symbol: "plus") {
+                    linkEditor = LinkEditorDraft()
+                }
+                .help("Add a website or video")
+                HeaderButton(symbol: model.showAll ? "books.vertical.fill" : "square.grid.2x2") {
+                    withAnimation(.easeOut(duration: 0.18)) { model.showAll.toggle() }
+                }
+                .help(model.showAll ? "Featured books" : "All books")
+            } else {
+                HeaderButton(symbol: "xmark") {
+                    linkEditor = nil
+                    pendingDeletion = nil
+                }
+                .help("Cancel")
             }
-            .help(model.showAll ? "Featured books" : "All books")
             HeaderButton(
                 symbol: model.preferences.dockEdge == .left ? "chevron.left" : "chevron.right",
                 action: onHide
@@ -57,6 +90,66 @@ struct SceneView: View {
         .padding(.horizontal, 19)
         .padding(.top, 18)
         .padding(.bottom, 12)
+    }
+
+    private var headerTitle: String {
+        if pendingDeletion != nil { return "Remove entry" }
+        if let editor = linkEditor { return editor.existingID == nil ? "Add entry" : "Edit entry" }
+        return model.showAll ? "Library" : "Read next"
+    }
+
+    @ViewBuilder private var linkEditorBody: some View {
+        if let draft = linkEditor {
+            LinkEditorView(
+                draft: Binding(
+                    get: { linkEditor ?? draft },
+                    set: { linkEditor = $0 }
+                ),
+                save: {
+                    guard let current = linkEditor else { return }
+                    if model.saveLink(
+                        id: current.existingID,
+                        title: current.title,
+                        subtitle: current.subtitle,
+                        urlText: current.urlText
+                    ) {
+                        linkEditor = nil
+                    }
+                },
+                cancel: { linkEditor = nil }
+            )
+        }
+    }
+
+    @ViewBuilder private var removalConfirmation: some View {
+        if let link = pendingDeletion {
+            VStack(alignment: .leading, spacing: 18) {
+                Image(systemName: "minus.circle")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(SovereignDesign.rust)
+                Text("Remove \(link.title) from this Scene?")
+                    .font(.system(size: 18, weight: .semibold, design: .serif))
+                    .foregroundStyle(SovereignDesign.ink)
+                Text("The website or video is not changed. Only this local entrance is removed.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(SovereignDesign.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                HStack {
+                    Button("Cancel") { pendingDeletion = nil }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(SovereignDesign.secondaryInk)
+                    Spacer()
+                    Button("Remove", role: .destructive) {
+                        if model.remove(link) { pendingDeletion = nil }
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 22)
+            .padding(.bottom, 14)
+        }
     }
 
     private var search: some View {
@@ -93,6 +186,91 @@ struct SceneView: View {
         .padding(.horizontal, 18)
         .padding(.top, 10)
         .padding(.bottom, 15)
+    }
+}
+
+private struct LinkEditorDraft: Identifiable {
+    let id = UUID()
+    let existingID: UUID?
+    var title: String
+    var subtitle: String
+    var urlText: String
+
+    init() {
+        existingID = nil
+        title = ""
+        subtitle = ""
+        urlText = ""
+    }
+
+    init(_ link: SceneLink) {
+        existingID = link.id
+        title = link.title
+        subtitle = link.subtitle
+        urlText = link.url.absoluteString
+    }
+}
+
+private struct LinkEditorView: View {
+    @Binding var draft: LinkEditorDraft
+    let save: () -> Void
+    let cancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            EditorField(label: "NAME") {
+                TextField("Tai chi, lecture, journal…", text: $draft.title)
+            }
+            EditorField(label: "DETAIL") {
+                TextField("Optional short description", text: $draft.subtitle)
+            }
+            EditorField(label: "ADDRESS") {
+                TextField("https://", text: $draft.urlText)
+            }
+            Text("Paste any http or https page. Scene keeps the address locally and opens it in your default app.")
+                .font(.system(size: 10.5))
+                .foregroundStyle(SovereignDesign.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            HStack {
+                Button("Cancel", action: cancel)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(SovereignDesign.secondaryInk)
+                Spacer()
+                Button("Keep in Scene", action: save)
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .tint(SovereignDesign.sage)
+            }
+        }
+        .textFieldStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 10)
+    }
+}
+
+private struct EditorField<Content: View>: View {
+    let label: String
+    let content: Content
+
+    init(label: String, @ViewBuilder content: () -> Content) {
+        self.label = label
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .tracking(1.4)
+                .foregroundStyle(SovereignDesign.rust)
+            content
+                .font(.system(size: 13))
+                .padding(.horizontal, 11)
+                .frame(height: 34)
+                .background(.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
     }
 }
 
@@ -188,25 +366,33 @@ private struct BookCard: View {
     }
 }
 
-private struct LibbyCard: View {
-    let action: () -> Void
+private struct LinkCard: View {
+    let link: SceneLink
+    let open: () -> Void
+    let edit: () -> Void
+    let remove: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
+        Button(action: open) {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Color(red: 0.12, green: 0.52, blue: 0.32))
-                    Image(systemName: "building.columns.fill").foregroundStyle(.white)
+                        .fill(tileColor)
+                    Image(systemName: symbol)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
                 }
                 .frame(width: 58, height: 70)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Libby")
+                    Text(link.title)
                         .font(.system(size: 15, weight: .semibold, design: .serif))
-                    Text("Temporary loans")
+                        .foregroundStyle(SovereignDesign.ink)
+                        .lineLimit(2)
+                    Text(link.subtitle.isEmpty ? (link.url.host ?? link.url.absoluteString) : link.subtitle)
                         .font(.system(size: 10))
                         .foregroundStyle(SovereignDesign.secondaryInk)
+                        .lineLimit(2)
                 }
                 Spacer()
                 Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .bold))
@@ -220,5 +406,30 @@ private struct LibbyCard: View {
         .scaleEffect(hovering ? 1.018 : 1)
         .animation(.easeOut(duration: 0.13), value: hovering)
         .onHover { hovering = $0 }
+        .contextMenu {
+            Button("Open") { open() }
+            Button("Edit…") { edit() }
+            Divider()
+            Button("Remove from Scene…", role: .destructive) { remove() }
+        }
+    }
+
+    private var isVideo: Bool {
+        let host = link.url.host?.lowercased() ?? ""
+        return host.contains("bilibili") || host.contains("youtube") || host.contains("vimeo")
+    }
+
+    private var symbol: String {
+        if isVideo { return "play.rectangle.fill" }
+        if link.url.host?.localizedCaseInsensitiveContains("libby") == true { return "building.columns.fill" }
+        return "link"
+    }
+
+    private var tileColor: Color {
+        if isVideo { return Color(red: 0.78, green: 0.28, blue: 0.29) }
+        if link.url.host?.localizedCaseInsensitiveContains("libby") == true {
+            return Color(red: 0.12, green: 0.52, blue: 0.32)
+        }
+        return SovereignDesign.sage
     }
 }

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added persistent user-managed website and video entrances with inline add/edit, confirmed removal, and HTTP(S) validation.
+- Added the requested **太极拳** Bilibili practice video and Libby as editable defaults while preserving intentional empty lists.
+- Removed reveal, pointer-exit, and shortcut-dismiss dwell timers. Exit interrupts an unfinished entrance in the originating event and uses only an 80 ms travel animation.
 - Added a persistent left/right **Dock Side** choice in Scene's menu.
 - The two-pixel sensor, shelf placement, entrance/exit motion, dismiss arrow, footer hint, and 48-point rearm zone now mirror as one system.
 - Existing `library.json` files decode as Left without resetting any book or reader preference.

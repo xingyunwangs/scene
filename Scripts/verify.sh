@@ -9,6 +9,7 @@ swift test --disable-sandbox
 bash Scripts/make-app.sh
 plutil -lint dist/Scene.app/Contents/Info.plist
 codesign --verify --deep --strict --verbose=2 dist/Scene.app
+.build/debug/Scene link-smoke
 
 BOOKS_DIR="${SCENE_BOOKS_DIR:-$HOME/Documents/Knowledge/Books/real}"
 if [[ -d "$BOOKS_DIR" ]]; then
