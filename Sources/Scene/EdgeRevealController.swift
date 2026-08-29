@@ -32,8 +32,7 @@ final class EdgeRevealView: NSView {
 final class EdgeRevealController {
     private var windows: [NSPanel] = []
     private var globalMouseMonitor: Any?
-    private var revealWorkItem: DispatchWorkItem?
-    private var armed = false
+    private var armed = true
     private var latched = false
     private var edge: DockEdge
     private let reveal: () -> Void
@@ -46,11 +45,7 @@ final class EdgeRevealController {
             let point = event.locationInWindow
             DispatchQueue.main.async { self?.handlePointerPosition(point) }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [weak self] in
-            guard let self else { return }
-            self.armed = true
-            self.handlePointerPosition(NSEvent.mouseLocation)
-        }
+        handlePointerPosition(NSEvent.mouseLocation)
     }
 
     deinit {
@@ -73,7 +68,7 @@ final class EdgeRevealController {
             view.wantsLayer = true
             view.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.01).cgColor
             view.onEnter = { [weak self] in self?.scheduleReveal() }
-            view.onExit = { [weak self] in self?.cancelReveal() }
+            view.onExit = { [weak self] in self?.handlePointerPosition(NSEvent.mouseLocation) }
             window.contentView = view
             window.level = .statusBar
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
@@ -92,7 +87,6 @@ final class EdgeRevealController {
 
     func setEdge(_ edge: DockEdge) {
         guard self.edge != edge else { return }
-        cancelReveal()
         self.edge = edge
         latched = false
         rebuild()
@@ -109,7 +103,6 @@ final class EdgeRevealController {
         if atEdge {
             scheduleReveal()
         } else {
-            cancelReveal()
             let stillNearEdge = NSScreen.screens.contains { screen in
                 guard NSMouseInRect(point, screen.frame, false) else { return false }
                 return edge == .left
@@ -122,18 +115,7 @@ final class EdgeRevealController {
 
     private func scheduleReveal() {
         guard armed, !latched else { return }
-        guard revealWorkItem == nil else { return }
-        let item = DispatchWorkItem { [weak self] in
-            self?.revealWorkItem = nil
-            self?.latched = true
-            self?.reveal()
-        }
-        revealWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16, execute: item)
-    }
-
-    private func cancelReveal() {
-        revealWorkItem?.cancel()
-        revealWorkItem = nil
+        latched = true
+        reveal()
     }
 }

@@ -19,54 +19,68 @@ func pressOptionB() {
         event.flags = .maskAlternate
         event.post(tap: .cghidEventTap)
     }
-    usleep(450_000)
 }
 
-func moveMouse(to point: CGPoint) {
+func postMouse(to point: CGPoint) {
     CGEvent(
         mouseEventSource: nil,
         mouseType: .mouseMoved,
         mouseCursorPosition: point,
         mouseButton: .left
     )!.post(tap: .cghidEventTap)
-    usleep(550_000)
+}
+
+func waitUntil(_ predicate: () -> Bool, timeout: TimeInterval) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    repeat {
+        if predicate() { return true }
+        usleep(8_000)
+    } while Date() < deadline
+    return predicate()
 }
 
 let display = CGDisplayBounds(CGMainDisplayID())
 let edge = CommandLine.arguments.contains("--edge=right") ? "right" : "left"
 if CommandLine.arguments.contains("--prepare") {
-    moveMouse(to: CGPoint(x: display.midX, y: display.midY))
+    postMouse(to: CGPoint(x: display.midX, y: display.midY))
+    usleep(100_000)
     exit(0)
 }
 
 let original = CGEvent(source: nil)!.location
-defer { moveMouse(to: original) }
-moveMouse(to: CGPoint(x: display.midX, y: display.midY))
+defer { postMouse(to: original) }
+postMouse(to: CGPoint(x: display.midX, y: display.midY))
+usleep(80_000)
 
 guard shelfCount() == 0 else {
     FileHandle.standardError.write(Data("interaction-smoke: Scene did not start collapsed\n".utf8))
     exit(1)
 }
 pressOptionB()
-guard shelfCount() == 1 else {
+guard waitUntil({ shelfCount() == 1 }, timeout: 0.25) else {
     FileHandle.standardError.write(Data("interaction-smoke: Option-B did not reveal Scene\n".utf8))
     exit(1)
 }
+let shortcutHideStarted = Date()
 pressOptionB()
-guard shelfCount() == 0 else {
+guard waitUntil({ shelfCount() == 0 }, timeout: 0.3) else {
     FileHandle.standardError.write(Data("interaction-smoke: Option-B did not collapse Scene\n".utf8))
     exit(1)
 }
+let shortcutHideMilliseconds = Int(Date().timeIntervalSince(shortcutHideStarted) * 1_000)
 let edgeX = edge == "left" ? display.minX + 1 : display.maxX - 1
-moveMouse(to: CGPoint(x: edgeX, y: display.midY))
-guard shelfCount() == 1 else {
+let revealStarted = Date()
+postMouse(to: CGPoint(x: edgeX, y: display.midY))
+guard waitUntil({ shelfCount() == 1 }, timeout: 0.25) else {
     FileHandle.standardError.write(Data("interaction-smoke: \(edge) edge did not reveal Scene\n".utf8))
     exit(1)
 }
-moveMouse(to: CGPoint(x: display.midX, y: display.midY))
-usleep(1_100_000)
-guard shelfCount() == 0 else {
+let revealMilliseconds = Int(Date().timeIntervalSince(revealStarted) * 1_000)
+let edgeHideStarted = Date()
+postMouse(to: CGPoint(x: display.midX, y: display.midY))
+guard waitUntil({ shelfCount() == 0 }, timeout: 0.3) else {
     FileHandle.standardError.write(Data("interaction-smoke: Scene did not leave naturally\n".utf8))
     exit(1)
 }
-print("INTERACTION VERDICT: PASS (\(edge))")
+let edgeHideMilliseconds = Int(Date().timeIntervalSince(edgeHideStarted) * 1_000)
+print("INTERACTION VERDICT: PASS (\(edge), reveal \(revealMilliseconds) ms, edge hide \(edgeHideMilliseconds) ms, shortcut hide \(shortcutHideMilliseconds) ms)")

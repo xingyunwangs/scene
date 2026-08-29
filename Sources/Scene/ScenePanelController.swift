@@ -42,9 +42,13 @@ final class ScenePanelController {
     private let model: SceneModel
     private var edge: DockEdge
     private var activeScreen: NSScreen?
-    private var hideWorkItem: DispatchWorkItem?
     private var observers: [NSObjectProtocol] = []
+    private var mouseMonitors: [Any] = []
     private var menuIsTracking = false
+    private var isEdgePreview = false
+    private var isAnimatingReveal = false
+    private var isHiding = false
+    private var transitionID = 0
 
     init(model: SceneModel, edge: DockEdge) {
         self.model = model
@@ -79,8 +83,7 @@ final class ScenePanelController {
             hosting.topAnchor.constraint(equalTo: root.topAnchor),
             hosting.bottomAnchor.constraint(equalTo: root.bottomAnchor),
         ])
-        root.onEnter = { [weak self] in self?.cancelScheduledHide() }
-        root.onExit = { [weak self] in self?.scheduleHide(after: 0.58) }
+        root.onExit = { [weak self] in self?.hideIfPointerIsAway() }
         panel.contentView = root
 
         observers.append(NotificationCenter.default.addObserver(
@@ -88,7 +91,7 @@ final class ScenePanelController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            DispatchQueue.main.async { self?.hide() }
+            MainActor.assumeIsolated { self?.hide() }
         })
         observers.append(NotificationCenter.default.addObserver(
             forName: NSMenu.didBeginTrackingNotification,
@@ -97,7 +100,6 @@ final class ScenePanelController {
         ) { [weak self] _ in
             DispatchQueue.main.async {
                 self?.menuIsTracking = true
-                self?.cancelScheduledHide()
             }
         })
         observers.append(NotificationCenter.default.addObserver(
@@ -107,47 +109,83 @@ final class ScenePanelController {
         ) { [weak self] _ in
             DispatchQueue.main.async {
                 self?.menuIsTracking = false
-                self?.scheduleHideIfPointerIsAway()
+                self?.hideIfPointerIsAway()
             }
         })
+        if let monitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { [weak self] _ in
+            DispatchQueue.main.async {
+                guard self?.isEdgePreview == true else { return }
+                self?.hideIfPointerIsAway()
+            }
+        }) {
+            mouseMonitors.append(monitor)
+        }
+        if let monitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { [weak self] event in
+            MainActor.assumeIsolated {
+                guard self?.isEdgePreview == true else { return }
+                self?.hideIfPointerIsAway()
+            }
+            return event
+        }) {
+            mouseMonitors.append(monitor)
+        }
         reposition()
     }
 
     deinit {
         observers.forEach(NotificationCenter.default.removeObserver)
+        mouseMonitors.forEach(NSEvent.removeMonitor)
     }
 
     func show(source: Source = .shortcut) {
-        cancelScheduledHide()
-        guard !panel.isVisible else { return }
+        let wasHiding = isHiding
+        guard !panel.isVisible || wasHiding else { return }
+        isHiding = false
+        transitionID &+= 1
+        let revealID = transitionID
+        isEdgePreview = source == .edge
         let screen = screenContainingPointer() ?? NSScreen.main
         guard let screen else { return }
         activeScreen = screen
         let shown = shownFrame(on: screen)
-        panel.setFrame(hiddenFrame(on: screen), display: false)
+        isAnimatingReveal = true
+        if !panel.isVisible {
+            panel.setFrame(hiddenFrame(on: screen), display: false)
+        }
         panel.alphaValue = 0.92
         panel.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = reduceMotion ? 0 : 0.24
+            context.duration = reduceMotion ? 0 : 0.14
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             context.allowsImplicitAnimation = true
             panel.animator().setFrame(shown, display: true)
             panel.animator().alphaValue = 1
+        } completionHandler: { [weak self] in
+            DispatchQueue.main.async {
+                guard self?.transitionID == revealID else { return }
+                self?.isAnimatingReveal = false
+                if self?.isEdgePreview == true { self?.hideIfPointerIsAway() }
+            }
         }
-        scheduleHide(after: source == .edge ? 1.35 : 2.8)
     }
 
     func hide(animated: Bool = true) {
-        cancelScheduledHide()
-        guard panel.isVisible else { return }
+        guard panel.isVisible, !isHiding, !menuIsTracking else { return }
+        isHiding = true
+        transitionID &+= 1
+        let hideID = transitionID
         let screen = activeScreen ?? screenContainingPointer() ?? NSScreen.main
         guard let screen else {
             panel.orderOut(nil)
             return
         }
-        let finish = { [weak panel] in
+        let finish = { [weak self, weak panel] in
+            guard self?.transitionID == hideID else { return }
             panel?.orderOut(nil)
             panel?.alphaValue = 1
+            self?.isEdgePreview = false
+            self?.isAnimatingReveal = false
+            self?.isHiding = false
         }
         guard animated, !reduceMotion else {
             panel.setFrame(hiddenFrame(on: screen), display: false)
@@ -155,7 +193,7 @@ final class ScenePanelController {
             return
         }
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.19
+            context.duration = 0.08
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             context.allowsImplicitAnimation = true
             panel.animator().setFrame(hiddenFrame(on: screen), display: true)
@@ -185,28 +223,12 @@ final class ScenePanelController {
         panel.setFrame(panel.isVisible ? shownFrame(on: screen) : hiddenFrame(on: screen), display: true)
     }
 
-    private func scheduleHide(after delay: TimeInterval) {
+    private func hideIfPointerIsAway() {
         guard panel.isVisible, !menuIsTracking else { return }
-        cancelScheduledHide()
-        let item = DispatchWorkItem { [weak self] in
-            guard let self, !self.menuIsTracking else { return }
-            self.hide()
-        }
-        hideWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
-    }
-
-    private func scheduleHideIfPointerIsAway() {
-        guard panel.isVisible else { return }
         let generousFrame = panel.frame.insetBy(dx: -14, dy: -14)
         if !NSMouseInRect(NSEvent.mouseLocation, generousFrame, false) {
-            scheduleHide(after: 0.58)
+            hide()
         }
-    }
-
-    private func cancelScheduledHide() {
-        hideWorkItem?.cancel()
-        hideWorkItem = nil
     }
 
     private func shownFrame(on screen: NSScreen) -> NSRect {
