@@ -23,8 +23,16 @@ cp Resources/Scene-Info.plist "$CONTENTS/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$CONTENTS/Info.plist"
 plutil -replace CFBundleVersion -string "$VERSION" "$CONTENTS/Info.plist"
 printf 'APPL????' > "$CONTENTS/PkgInfo"
-if [[ -n "${SIGN_IDENTITY:-}" ]]; then
-  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$APP_DIR"
+SIGNING_IDENTITY="${SIGN_IDENTITY:-}"
+if [[ -z "$SIGNING_IDENTITY" ]] && security find-identity -v -p codesigning 2>/dev/null | grep -Fq '"Look Signing"'; then
+  SIGNING_IDENTITY="Look Signing"
+fi
+if [[ -n "$SIGNING_IDENTITY" ]]; then
+  if [[ "$SIGNING_IDENTITY" == "Look Signing" ]]; then
+    codesign --force --deep --sign "$SIGNING_IDENTITY" --options runtime --timestamp=none "$APP_DIR"
+  else
+    codesign --force --deep --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$APP_DIR"
+  fi
 else
   codesign --force --deep --sign - --timestamp=none "$APP_DIR"
 fi

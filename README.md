@@ -26,4 +26,6 @@ make interaction-test
 
 Scene and Mirror are separate products and repositories. Their only integration is the documented, versioned capture-draft handoff in [`Docs/CONTRACT.md`](Docs/CONTRACT.md).
 
+`SIGN_IDENTITY` may select a stable code-signing identity. On the author's machine the build automatically reuses `Look Signing`, so macOS privacy grants survive local upgrades instead of following an ad-hoc binary hash.
+
 MIT License.

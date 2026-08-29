@@ -17,6 +17,7 @@ if arguments.first == "shot" {
         _ = NSApplication.shared
         NSApplication.shared.setActivationPolicy(.accessory)
         let model = SceneModel()
+        model.refresh()
         return ViewSnapshot.write(
             SceneView(model: model).frame(width: 266, height: 740),
             size: CGSize(width: 266, height: 740),

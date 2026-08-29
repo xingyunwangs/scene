@@ -14,6 +14,7 @@ final class SceneAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         panelController = ScenePanelController(model: model)
         edgeRevealController = EdgeRevealController { [weak self] in
+            self?.model.activate()
             self?.panelController?.show(source: .edge)
         }
         makeStatusItem()
@@ -30,6 +31,7 @@ final class SceneAppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("lifecycle-check") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { NSApp.terminate(nil) }
         } else if !CommandLine.arguments.contains("hidden") {
+            model.activate()
             panelController?.show()
         }
     }
@@ -40,6 +42,7 @@ final class SceneAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePanel() {
+        if panelController?.isVisible == false { model.activate() }
         panelController?.toggle()
     }
 

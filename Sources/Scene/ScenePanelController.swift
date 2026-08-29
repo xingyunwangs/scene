@@ -60,6 +60,7 @@ final class ScenePanelController {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.hidesOnDeactivate = false
+        panel.isRestorable = false
         panel.isMovableByWindowBackground = false
         panel.animationBehavior = .none
 

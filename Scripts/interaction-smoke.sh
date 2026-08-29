@@ -13,7 +13,7 @@ while pgrep -x Scene >/dev/null 2>&1; do
   fi
   sleep 0.1
 done
-open -g /Applications/Scene.app --args hidden
+open -g /Applications/Scene.app --args hidden interaction-smoke
 attempt=0
 until pgrep -x Scene >/dev/null 2>&1; do
   attempt=$((attempt + 1))

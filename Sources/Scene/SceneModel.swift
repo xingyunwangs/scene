@@ -9,9 +9,16 @@ final class SceneModel: ObservableObject {
     @Published var status = ""
     @Published var search = ""
     private(set) var preferences: ScenePreferences
+    private var hasLoadedLibrary = false
 
     init() {
         preferences = SceneLibrary.loadPreferences()
+    }
+
+    func activate() {
+        guard !hasLoadedLibrary else { return }
+        hasLoadedLibrary = true
+        guard !CommandLine.arguments.contains("interaction-smoke") else { return }
         refresh()
     }
 
@@ -23,6 +30,7 @@ final class SceneModel: ObservableObject {
     }
 
     func refresh() {
+        hasLoadedLibrary = true
         books = SceneLibrary.scan(preferences)
         if books.isEmpty {
             status = "No EPUB or PDF found in \(preferences.libraryPath)."
