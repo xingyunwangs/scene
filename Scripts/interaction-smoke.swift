@@ -70,12 +70,24 @@ guard waitUntil({ shelfCount() == 0 }, timeout: 0.3) else {
 let shortcutHideMilliseconds = Int(Date().timeIntervalSince(shortcutHideStarted) * 1_000)
 let edgeX = edge == "left" ? display.minX + 1 : display.maxX - 1
 let revealStarted = Date()
-postMouse(to: CGPoint(x: edgeX, y: display.midY))
+postMouse(to: CGPoint(x: edgeX, y: display.minY + 60))
 guard waitUntil({ shelfCount() == 1 }, timeout: 0.25) else {
     FileHandle.standardError.write(Data("interaction-smoke: \(edge) edge did not reveal Scene\n".utf8))
     exit(1)
 }
 let revealMilliseconds = Int(Date().timeIntervalSince(revealStarted) * 1_000)
+usleep(250_000)
+guard shelfCount() == 1 else {
+    FileHandle.standardError.write(Data("interaction-smoke: Scene flashed instead of remaining available at the edge\n".utf8))
+    exit(1)
+}
+let approachX = edge == "left" ? display.minX + 40 : display.maxX - 40
+postMouse(to: CGPoint(x: approachX, y: display.midY))
+usleep(80_000)
+guard shelfCount() == 1 else {
+    FileHandle.standardError.write(Data("interaction-smoke: Scene vanished during the edge-to-shelf approach\n".utf8))
+    exit(1)
+}
 let edgeHideStarted = Date()
 postMouse(to: CGPoint(x: display.midX, y: display.midY))
 guard waitUntil({ shelfCount() == 0 }, timeout: 0.3) else {

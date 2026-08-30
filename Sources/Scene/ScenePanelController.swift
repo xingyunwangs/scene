@@ -48,6 +48,7 @@ final class ScenePanelController {
     private var isEdgePreview = false
     private var isAnimatingReveal = false
     private var isHiding = false
+    private var pointerEnteredPanel = false
     private var transitionID = 0
 
     init(model: SceneModel, edge: DockEdge) {
@@ -83,7 +84,15 @@ final class ScenePanelController {
             hosting.topAnchor.constraint(equalTo: root.topAnchor),
             hosting.bottomAnchor.constraint(equalTo: root.bottomAnchor),
         ])
-        root.onExit = { [weak self] in self?.hideIfPointerIsAway() }
+        root.onEnter = { [weak self] in self?.pointerEnteredPanel = true }
+        root.onExit = { [weak self] in
+            guard let self else { return }
+            if self.pointerEnteredPanel {
+                self.hide()
+            } else {
+                self.hideIfPointerIsAway()
+            }
+        }
         panel.contentView = root
 
         observers.append(NotificationCenter.default.addObserver(
@@ -144,6 +153,7 @@ final class ScenePanelController {
         transitionID &+= 1
         let revealID = transitionID
         isEdgePreview = source == .edge
+        pointerEnteredPanel = false
         let screen = screenContainingPointer() ?? NSScreen.main
         guard let screen else { return }
         activeScreen = screen
@@ -186,6 +196,7 @@ final class ScenePanelController {
             self?.isEdgePreview = false
             self?.isAnimatingReveal = false
             self?.isHiding = false
+            self?.pointerEnteredPanel = false
         }
         guard animated, !reduceMotion else {
             panel.setFrame(hiddenFrame(on: screen), display: false)
@@ -225,8 +236,8 @@ final class ScenePanelController {
 
     private func hideIfPointerIsAway() {
         guard panel.isVisible, !menuIsTracking else { return }
-        let generousFrame = panel.frame.insetBy(dx: -14, dy: -14)
-        if !NSMouseInRect(NSEvent.mouseLocation, generousFrame, false) {
+        guard let screen = activeScreen ?? screenContainingPointer() ?? NSScreen.main else { return }
+        if !NSMouseInRect(NSEvent.mouseLocation, previewInteractionFrame(on: screen), false) {
             hide()
         }
     }
@@ -244,6 +255,13 @@ final class ScenePanelController {
             ? screen.frame.minX - Self.width - 18
             : screen.frame.maxX + 18
         return frame
+    }
+
+    private func previewInteractionFrame(on screen: NSScreen) -> NSRect {
+        let target = shownFrame(on: screen)
+        let minX = edge == .left ? screen.frame.minX : target.minX - 14
+        let maxX = edge == .left ? target.maxX + 14 : screen.frame.maxX
+        return NSRect(x: minX, y: screen.frame.minY, width: maxX - minX, height: screen.frame.height)
     }
 
     private var reduceMotion: Bool {

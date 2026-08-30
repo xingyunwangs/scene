@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed manual edge summon flashing away during entrance: preview intent now follows a final-position side corridor instead of testing the shelf's still-animated frame.
 - Added persistent user-managed website and video entrances with inline add/edit, confirmed removal, and HTTP(S) validation.
 - Added the requested **太极拳** Bilibili practice video and Libby as editable defaults while preserving intentional empty lists.
 - Removed reveal, pointer-exit, and shortcut-dismiss dwell timers. Exit interrupts an unfinished entrance in the originating event and uses only an 80 ms travel animation.
